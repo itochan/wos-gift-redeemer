@@ -8,6 +8,9 @@ require "json"
 
 class Redeemer < Thor
   SECRET = "tB87#kPtkxqOS2"
+  ERROR_CODE_TIME_ERROR = 40007
+  ERROR_CODE_SAME_TYPE_EXCHANGE = 40011
+  ERROR_CODE_CDK_NOT_FOUND = 40014
 
   desc "player [CSV_FILE]", "Redeem player"
   def player(csv_file)
@@ -57,6 +60,59 @@ class Redeemer < Thor
       updated_rows.each do |updated_row|
         csv_out << updated_row
       end
+    end
+
+    puts "Processing completed."
+  end
+
+  desc "redeem [CSV_FILE] [GIFT_CODE]", "Redeem code"
+  def redeem(csv_file, gift_code)
+    rows = CSV.read(csv_file, headers: true)
+
+    rows.each do |row|
+      fid = row["fid"]
+      time = Time.now.to_i
+      sign = generate_sign({
+        cdk: gift_code,
+        fid: fid,
+        time: time
+      })
+
+      response = Faraday.post("https://wos-giftcode-api.centurygame.com/api/gift_code", {
+        sign: sign,
+        fid: fid,
+        cdk: gift_code,
+        time: time
+      })
+
+      begin
+        data = JSON.parse(response.body)
+        if data["code"] == 0
+          puts "Success for fid: #{fid} nickname: #{data["data"]["nickname"]}"
+        else
+          puts "Error! Error code: #{data["error_code"]} Message: #{data["msg"]}"
+          case data["err_code"]
+          when ERROR_CODE_TIME_ERROR
+            puts "Gift code #{gift_code} is expired."
+            exit
+          when ERROR_CODE_SAME_TYPE_EXCHANGE
+            puts "Gift code #{gift_code} has been redeemed."
+            next
+          when ERROR_CODE_CDK_NOT_FOUND
+            puts "Gift code #{gift_code} is invalid."
+            exit
+          else
+            puts "Unexpected error for fid: #{fid} error code: #{data["error_code"]} message: #{data["msg"]}"
+          end
+          next
+        end
+      rescue => e
+        puts "Failed for fid: #{fid}"
+        puts e
+        puts response.body
+      end
+
+      sleep(rand(1.0..2.0))
     end
 
     puts "Processing completed."
