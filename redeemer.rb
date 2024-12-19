@@ -8,6 +8,7 @@ require "json"
 
 class Redeemer < Thor
   SECRET = "tB87#kPtkxqOS2"
+  ERROR_CODE_TIMEOUT_RETRY = 40004
   ERROR_CODE_TIME_ERROR = 40007
   ERROR_CODE_RECEIVED = 40008
   ERROR_CODE_NOT_LOGIN = 40009
@@ -84,6 +85,9 @@ class Redeemer < Thor
         else
           puts "Error! Error code: #{data["error_code"]} Message: #{data["msg"]}"
           case data["err_code"]
+          when ERROR_CODE_TIMEOUT_RETRY
+            puts "Server is busy. Please try again later."
+            exit
           when ERROR_CODE_TIME_ERROR
             puts "Gift code #{gift_code} is expired."
             exit
