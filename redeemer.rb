@@ -83,6 +83,7 @@ class Redeemer < Thor
       })
 
       begin
+        puts "Response code: #{response.status} x-ratelimit-limit: #{response.headers["x-ratelimit-limit"]} x-ratelimit-remaining: #{response.headers["x-ratelimit-remaining"]}"
         data = JSON.parse(response.body)
         if data["code"] == 0
           puts "Success for fid: #{fid} nickname: #{row["nickname"]}"
