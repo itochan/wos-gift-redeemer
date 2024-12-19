@@ -110,9 +110,9 @@ class Redeemer < Thor
         puts "Failed for fid: #{fid}"
         puts e
         puts response.body
+      ensure
+        sleep(rand(1.0..2.0))
       end
-
-      sleep(rand(1.0..2.0))
     end
 
     puts "Processing completed."
