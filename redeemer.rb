@@ -27,7 +27,7 @@ class Redeemer < Thor
 
       begin
         response = login_player(fid)
-        data = JSON.parse(response.body)
+        data = response.body
         if data["code"] == 0
           updated_rows << [
             data["data"]["fid"],
@@ -88,7 +88,7 @@ class Redeemer < Thor
 
       begin
         puts "Response code: #{response.status} x-ratelimit-limit: #{response.headers["x-ratelimit-limit"]} x-ratelimit-remaining: #{response.headers["x-ratelimit-remaining"]}"
-        data = JSON.parse(response.body)
+        data = response.body
         if data["code"] == 0
           puts "Success for fid: #{fid} nickname: #{row["nickname"]}"
           puts "Error code: #{data["error_code"]} message: #{data["msg"]}"
@@ -143,6 +143,7 @@ class Redeemer < Thor
         interval_randomness: 0.5,
         backoff_factor: 2
       }
+      f.response :json
     end
   end
 
