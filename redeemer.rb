@@ -3,6 +3,7 @@
 require "thor"
 require "digest"
 require "faraday"
+require "faraday/retry"
 require "csv"
 require "json"
 
@@ -35,12 +36,15 @@ class Redeemer < Thor
             data["data"]["stove_lv"],
             data["data"]["total_recharge_amount"]
           ]
+          puts "Response code: #{response.status} x-ratelimit-limit: #{response.headers["x-ratelimit-limit"]} x-ratelimit-remaining: #{response.headers["x-ratelimit-remaining"]}"
           puts "Success for fid: #{fid} nickname: #{data["data"]["nickname"]}"
         else
+          puts "Response code: #{response.status} x-ratelimit-limit: #{response.headers["x-ratelimit-limit"]} x-ratelimit-remaining: #{response.headers["x-ratelimit-remaining"]}"
           puts "Failed for fid: #{fid} code: #{data["code"]} message: #{data["message"]}"
           updated_rows << row.to_h.values
         end
       rescue => e
+        puts "Response code: #{response.status} x-ratelimit-limit: #{response.headers["x-ratelimit-limit"]} x-ratelimit-remaining: #{response.headers["x-ratelimit-remaining"]}"
         puts "Failed for fid: #{fid}"
         puts e
         puts response.body
@@ -75,7 +79,7 @@ class Redeemer < Thor
         fid: fid,
         time: time
       })
-      response = Faraday.post("https://wos-giftcode-api.centurygame.com/api/gift_code", {
+      response = connection.post("/api/gift_code", {
         sign: sign,
         fid: fid,
         cdk: gift_code,
@@ -128,6 +132,20 @@ class Redeemer < Thor
 
   private
 
+  def connection
+    Faraday.new("https://wos-giftcode-api.centurygame.com") do |f|
+      f.request :url_encoded
+      f.request :retry, {
+        methods: [],
+        retry_statuses: [429],
+        max: 5,
+        interval: 1,
+        interval_randomness: 0.5,
+        backoff_factor: 2
+      }
+    end
+  end
+
   def generate_sign(parameters)
     Digest::MD5.hexdigest(parameters.sort.map { |k, v| "#{k}=#{v}" }.join("&") + SECRET)
   end
@@ -139,7 +157,7 @@ class Redeemer < Thor
       time: time
     })
 
-    Faraday.post("https://wos-giftcode-api.centurygame.com/api/player", {
+    connection.post("/api/player", {
       sign: sign,
       fid: fid,
       time: time
