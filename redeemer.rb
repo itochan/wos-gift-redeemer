@@ -43,15 +43,13 @@ class Redeemer < Thor
           puts "Failed for fid: #{fid} code: #{data["code"]} message: #{data["message"]}"
           updated_rows << row.to_h.values
         end
-      rescue => e
-        puts "Response code: #{response.status} x-ratelimit-limit: #{response.headers["x-ratelimit-limit"]} x-ratelimit-remaining: #{response.headers["x-ratelimit-remaining"]}"
+      rescue Faraday::ClientError => e
+        puts "Response code: #{e.response_status} x-ratelimit-limit: #{e.response_headers["x-ratelimit-limit"]} x-ratelimit-remaining: #{e.response_headers["x-ratelimit-remaining"]}"
         puts "Failed for fid: #{fid}"
+        puts e.response_body
         puts e
-        puts response.body
         updated_rows << row.to_h.values
       end
-
-      sleep 0.5
     end
 
     CSV.open(csv_file, "wb", write_headers: true, headers: rows.headers) do |csv_out|
@@ -122,8 +120,6 @@ class Redeemer < Thor
         puts "Failed for fid: #{fid}"
         puts e
         puts response.body
-      ensure
-        sleep 0.5
       end
     end
 
@@ -136,13 +132,15 @@ class Redeemer < Thor
     Faraday.new("https://wos-giftcode-api.centurygame.com") do |f|
       f.request :url_encoded
       f.request :retry, {
-        methods: [],
+        methods: [:get, :post],
+        exceptions: Faraday::ClientError,
         retry_statuses: [429],
-        max: 5,
+        max: 10,
         interval: 1,
         interval_randomness: 0.5,
         backoff_factor: 2
       }
+      f.response :raise_error
       f.response :json
     end
   end
