@@ -8,6 +8,7 @@ require "json"
 
 class Redeemer < Thor
   SECRET = "tB87#kPtkxqOS2"
+  ERROR_CODE_SUCCESS = 20000
   ERROR_CODE_TIMEOUT_RETRY = 40004
   ERROR_CODE_TIME_ERROR = 40007
   ERROR_CODE_RECEIVED = 40008
@@ -64,13 +65,16 @@ class Redeemer < Thor
 
     rows.each do |row|
       fid = row["fid"]
+
+      login_player(fid)
+      sleep(0.5)
+
       time = Time.now.to_i
       sign = generate_sign({
         cdk: gift_code,
         fid: fid,
         time: time
       })
-
       response = Faraday.post("https://wos-giftcode-api.centurygame.com/api/gift_code", {
         sign: sign,
         fid: fid,
@@ -81,9 +85,10 @@ class Redeemer < Thor
       begin
         data = JSON.parse(response.body)
         if data["code"] == 0
-          puts "Success for fid: #{fid} nickname: #{data["data"]["nickname"]}"
+          puts "Success for fid: #{fid} nickname: #{row["nickname"]}"
+          puts "Error code: #{data["error_code"]} message: #{data["msg"]}"
         else
-          puts "Error! Error code: #{data["error_code"]} Message: #{data["msg"]}"
+          puts "Error user #{fid} #{row["nickname"]} Error code: #{data["err_code"]} Message: #{data["msg"]}"
           case data["err_code"]
           when ERROR_CODE_TIMEOUT_RETRY
             puts "Server is busy. Please try again later."
@@ -104,7 +109,7 @@ class Redeemer < Thor
             puts "Gift code #{gift_code} is invalid."
             exit
           else
-            puts "Unexpected error for fid: #{fid} error code: #{data["error_code"]} message: #{data["msg"]}"
+            puts "Unexpected error for fid: #{fid} error code: #{data["err_code"]} message: #{data["msg"]}"
           end
           next
         end
