@@ -51,7 +51,7 @@ class Redeemer < Thor
         updated_rows << row.to_h.values
       end
 
-      sleep(rand(1.0..2.0))
+      sleep 0.5
     end
 
     CSV.open(csv_file, "wb", write_headers: true, headers: rows.headers) do |csv_out|
@@ -123,7 +123,7 @@ class Redeemer < Thor
         puts e
         puts response.body
       ensure
-        sleep(rand(1.0..2.0))
+        sleep 0.5
       end
     end
 
