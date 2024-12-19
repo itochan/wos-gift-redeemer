@@ -9,6 +9,8 @@ require "json"
 class Redeemer < Thor
   SECRET = "tB87#kPtkxqOS2"
   ERROR_CODE_TIME_ERROR = 40007
+  ERROR_CODE_RECEIVED = 40008
+  ERROR_CODE_NOT_LOGIN = 40009
   ERROR_CODE_SAME_TYPE_EXCHANGE = 40011
   ERROR_CODE_CDK_NOT_FOUND = 40014
 
@@ -94,6 +96,12 @@ class Redeemer < Thor
           case data["err_code"]
           when ERROR_CODE_TIME_ERROR
             puts "Gift code #{gift_code} is expired."
+            exit
+          when ERROR_CODE_RECEIVED
+            puts "Gift code #{gift_code} has been redeemed."
+            next
+          when ERROR_CODE_NOT_LOGIN
+            puts "User #{fid} is not logged in."
             exit
           when ERROR_CODE_SAME_TYPE_EXCHANGE
             puts "Gift code #{gift_code} has been redeemed."
