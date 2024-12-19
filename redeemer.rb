@@ -21,19 +21,9 @@ class Redeemer < Thor
 
     rows.each do |row|
       fid = row["fid"]
-      time = Time.now.to_i
-      sign = generate_sign({
-        fid: fid,
-        time: time
-      })
-
-      response = Faraday.post("https://wos-giftcode-api.centurygame.com/api/player", {
-        fid: fid,
-        time: time,
-        sign: sign
-      })
 
       begin
+        response = login_player(fid)
         data = JSON.parse(response.body)
         if data["code"] == 0
           updated_rows << [
@@ -130,6 +120,20 @@ class Redeemer < Thor
 
   def generate_sign(parameters)
     Digest::MD5.hexdigest(parameters.sort.map { |k, v| "#{k}=#{v}" }.join("&") + SECRET)
+  end
+
+  def login_player(fid)
+    time = Time.now.to_i
+    sign = generate_sign({
+      fid: fid,
+      time: time
+    })
+
+    Faraday.post("https://wos-giftcode-api.centurygame.com/api/player", {
+      sign: sign,
+      fid: fid,
+      time: time
+    })
   end
 end
 
