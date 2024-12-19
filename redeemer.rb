@@ -5,8 +5,16 @@ require "digest"
 require "faraday"
 require "csv"
 require "json"
+
 class Redeemer < Thor
   SECRET = "tB87#kPtkxqOS2"
+  ERROR_CODE_SUCCESS = 20000
+  ERROR_CODE_TIMEOUT_RETRY = 40004
+  ERROR_CODE_TIME_ERROR = 40007
+  ERROR_CODE_RECEIVED = 40008
+  ERROR_CODE_NOT_LOGIN = 40009
+  ERROR_CODE_SAME_TYPE_EXCHANGE = 40011
+  ERROR_CODE_CDK_NOT_FOUND = 40014
 
   desc "player [CSV_FILE]", "Redeem player"
   def player(csv_file)
@@ -15,16 +23,9 @@ class Redeemer < Thor
 
     rows.each do |row|
       fid = row["fid"]
-      time = Time.now.to_i
-      sign = generate_sign(fid, time)
-
-      response = Faraday.post("https://wos-giftcode-api.centurygame.com/api/player", {
-        fid: fid,
-        time: time,
-        sign: sign
-      })
 
       begin
+        response = login_player(fid)
         data = JSON.parse(response.body)
         if data["code"] == 0
           updated_rows << [
@@ -58,10 +59,90 @@ class Redeemer < Thor
     puts "Processing completed."
   end
 
+  desc "redeem [CSV_FILE] [GIFT_CODE]", "Redeem code"
+  def redeem(csv_file, gift_code)
+    rows = CSV.read(csv_file, headers: true)
+
+    rows.each do |row|
+      fid = row["fid"]
+
+      login_player(fid)
+      sleep(0.5)
+
+      time = Time.now.to_i
+      sign = generate_sign({
+        cdk: gift_code,
+        fid: fid,
+        time: time
+      })
+      response = Faraday.post("https://wos-giftcode-api.centurygame.com/api/gift_code", {
+        sign: sign,
+        fid: fid,
+        cdk: gift_code,
+        time: time
+      })
+
+      begin
+        data = JSON.parse(response.body)
+        if data["code"] == 0
+          puts "Success for fid: #{fid} nickname: #{row["nickname"]}"
+          puts "Error code: #{data["error_code"]} message: #{data["msg"]}"
+        else
+          puts "Error user #{fid} #{row["nickname"]} Error code: #{data["err_code"]} Message: #{data["msg"]}"
+          case data["err_code"]
+          when ERROR_CODE_TIMEOUT_RETRY
+            puts "Server is busy. Please try again later."
+            exit
+          when ERROR_CODE_TIME_ERROR
+            puts "Gift code #{gift_code} is expired."
+            exit
+          when ERROR_CODE_RECEIVED
+            puts "Gift code #{gift_code} has been redeemed."
+            next
+          when ERROR_CODE_NOT_LOGIN
+            puts "User #{fid} is not logged in."
+            exit
+          when ERROR_CODE_SAME_TYPE_EXCHANGE
+            puts "Gift code #{gift_code} has been redeemed."
+            next
+          when ERROR_CODE_CDK_NOT_FOUND
+            puts "Gift code #{gift_code} is invalid."
+            exit
+          else
+            puts "Unexpected error for fid: #{fid} error code: #{data["err_code"]} message: #{data["msg"]}"
+          end
+          next
+        end
+      rescue => e
+        puts "Failed for fid: #{fid}"
+        puts e
+        puts response.body
+      ensure
+        sleep(rand(1.0..2.0))
+      end
+    end
+
+    puts "Processing completed."
+  end
+
   private
 
-  def generate_sign(fid, time)
-    Digest::MD5.hexdigest("fid=#{fid}&time=#{time}#{SECRET}")
+  def generate_sign(parameters)
+    Digest::MD5.hexdigest(parameters.sort.map { |k, v| "#{k}=#{v}" }.join("&") + SECRET)
+  end
+
+  def login_player(fid)
+    time = Time.now.to_i
+    sign = generate_sign({
+      fid: fid,
+      time: time
+    })
+
+    Faraday.post("https://wos-giftcode-api.centurygame.com/api/player", {
+      sign: sign,
+      fid: fid,
+      time: time
+    })
   end
 end
 
