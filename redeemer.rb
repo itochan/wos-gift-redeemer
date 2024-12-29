@@ -17,6 +17,12 @@ class Redeemer < Thor
   ERROR_CODE_SAME_TYPE_EXCHANGE = 40011
   ERROR_CODE_CDK_NOT_FOUND = 40014
 
+  class RedeemError < StandardError; end
+
+  class TimeoutRetryError < RedeemError; end
+
+  class NotLoginError < RedeemError; end
+
   desc "player [CSV_FILE]", "Redeem player"
   def player(csv_file)
     rows = CSV.read(csv_file, headers: true)
@@ -95,7 +101,7 @@ class Redeemer < Thor
           case data["err_code"]
           when ERROR_CODE_TIMEOUT_RETRY
             puts "Server is busy. Please try again later."
-            exit
+            raise TimeoutRetryError
           when ERROR_CODE_TIME_ERROR
             puts "Gift code #{gift_code} is expired."
             exit
@@ -104,7 +110,7 @@ class Redeemer < Thor
             next
           when ERROR_CODE_NOT_LOGIN
             puts "User #{fid} is not logged in."
-            exit
+            raise NotLoginError
           when ERROR_CODE_SAME_TYPE_EXCHANGE
             puts "Gift code #{gift_code} has been redeemed."
             next
@@ -133,7 +139,14 @@ class Redeemer < Thor
       f.request :url_encoded
       f.request :retry, {
         methods: [:get, :post],
-        exceptions: Faraday::ClientError,
+        exceptions: [Faraday::ClientError, Faraday::ConnectionFailed, TimeoutRetryError, NotLoginError],
+        max: 10,
+        interval: 1,
+        interval_randomness: 0.5,
+        backoff_factor: 2
+      }
+      f.request :retry, {
+        methods: [:get, :post],
         retry_statuses: [429],
         max: 10,
         interval: 1,
